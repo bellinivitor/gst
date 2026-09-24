@@ -1,11 +1,17 @@
 #!/usr/bin/env node
 import { findOrphans } from '../src/diff.js';
 import { printReport } from '../src/report.js';
+import { cmdClean } from '../src/clean.js';
+import { cmdAgents } from '../src/launchd.js';
+import { cmdTrash } from '../src/trash.js';
 
 const HELP = `gst — encontra pastas órfãs deixadas por apps desinstalados no macOS
 
 Uso:
   gst scan [opções]      Lista pastas órfãs no ~/Library, ordenadas por tamanho
+  gst clean [--all]      Seleciona apps e move as pastas deles para a Lixeira
+  gst agents [--clean]   Jobs de login (launchd) apontando para binário sumido
+  gst trash [--yes]      Mostra o tamanho da Lixeira e esvazia (irreversível)
   gst help               Mostra esta ajuda
 
 Opções do scan:
@@ -13,6 +19,10 @@ Opções do scan:
   --system         Inclui bundle ids do sistema (com.apple.*)
   --limit N        Máximo de linhas por grupo (padrão: 40)
   --json           Saída em JSON (para scripts)
+
+clean: ↑/↓ move · espaço marca · a marca todos · enter confirma · q sai
+       sempre pede confirmação e move para a Lixeira (reversível).
+scan mostra a última modificação de cada pasta (⚠ = tocada nos últimos 14 dias).
 `;
 
 function parseArgs(argv) {
@@ -52,6 +62,15 @@ async function main() {
   switch (cmd) {
     case 'scan':
       await cmdScan(rest);
+      break;
+    case 'clean':
+      await cmdClean({ includeLow: rest.includes('--all') });
+      break;
+    case 'agents':
+      await cmdAgents({ clean: rest.includes('--clean') });
+      break;
+    case 'trash':
+      await cmdTrash({ yes: rest.includes('--yes') || rest.includes('-y') });
       break;
     case undefined:
     case 'help':
