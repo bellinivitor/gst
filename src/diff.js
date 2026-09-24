@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { statSync } from 'node:fs';
 import { basename } from 'node:path';
 import { getInstalledApps } from './scanner.js';
 import { walkLibrary } from './library-walker.js';
@@ -34,6 +35,15 @@ function sizeKb(path, timeoutMs = 20000) {
       resolve(Number.isFinite(kb) ? kb : 0);
     });
   });
+}
+
+/** Data de última modificação (ms) do caminho; null se não der para ler. */
+function mtimeOf(path) {
+  try {
+    return statSync(path).mtimeMs;
+  } catch {
+    return null;
+  }
 }
 
 /** Aplica uma função async sobre itens com concorrência limitada. */
@@ -80,6 +90,7 @@ export async function findOrphans({ includeSystem = false, concurrency = 12 } = 
     ...e,
     confidence: e.isBundleId ? 'high' : 'low',
     sizeKb: sizes[idx],
+    mtimeMs: mtimeOf(e.path),
   }));
 
   orphans.sort((a, b) => b.sizeKb - a.sizeKb);

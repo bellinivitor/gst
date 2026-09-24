@@ -5,6 +5,26 @@ export function fmtSize(kb) {
   return kb + ' KB';
 }
 
+const DAY = 86400000;
+
+/** Considera "recente" (sinal de possível uso) se tocado nos últimos 14 dias. */
+export function isRecent(mtimeMs) {
+  return mtimeMs != null && Date.now() - mtimeMs <= 14 * DAY;
+}
+
+/** Idade legível em pt-BR: "hoje", "há 3 dias", "há 2 meses". */
+export function humanAge(mtimeMs) {
+  if (mtimeMs == null) return '—';
+  const days = (Date.now() - mtimeMs) / DAY;
+  if (days < 1) return 'hoje';
+  if (days < 2) return 'ontem';
+  if (days < 30) return `há ${Math.round(days)} dias`;
+  if (days < 60) return 'há 1 mês';
+  if (days < 365) return `há ${Math.round(days / 30)} meses`;
+  const y = Math.round(days / 365);
+  return y <= 1 ? 'há 1 ano' : `há ${y} anos`;
+}
+
 // --- Cor (truecolor ANSI, só quando a saída é um terminal) -------------------
 const COLOR = process.stdout.isTTY;
 const rgb = (r, g, b, s) => (COLOR ? `\x1b[38;2;${r};${g};${b}m${s}\x1b[0m` : s);
@@ -18,6 +38,7 @@ const ink = {
   chrome: (s) => rgb(107, 114, 128, s), // slate — categorias, metadados
   faint: (s) => rgb(75, 85, 99, s), // trilho das barras
   accent: (s) => rgb(167, 139, 250, s), // destaque / totais
+  warn: (s) => rgb(224, 168, 83, s), // âmbar — tocado recentemente
 };
 
 /** Escolhe o tom conforme a magnitude (KB). */
@@ -132,10 +153,11 @@ function printRows(items, limit) {
 
   const sizeW = shown.reduce((w, o) => Math.max(w, fmtSize(o.sizeKb).length), 0);
   const catW = shown.reduce((w, o) => Math.max(w, (CAT_SHORT[o.category] || o.category).length), 0);
+  const ageW = shown.reduce((w, o) => Math.max(w, humanAge(o.mtimeMs).length), 0) + 2; // +2: espaço p/ ⚠
   const barW = cols < 92 ? 10 : 18;
 
-  // pad(2) size ' ' bar '  ' name '  ' cat
-  const nameW = Math.max(12, cols - 2 - sizeW - 1 - barW - 2 - catW - 2);
+  // pad(2) size ' ' bar '  ' name '  ' cat '  ' age
+  const nameW = Math.max(12, cols - 2 - sizeW - 1 - barW - 2 - catW - 2 - ageW - 2);
 
   for (const o of shown) {
     const t = tier(o.sizeKb);
@@ -143,7 +165,10 @@ function printRows(items, limit) {
     const barStr = bar(o.sizeKb, max, barW, t);
     const name = truncate(o.confidence === 'high' ? o.key : o.name, nameW).padEnd(nameW);
     const cat = ink.chrome((CAT_SHORT[o.category] || o.category).padStart(catW));
-    console.log(`  ${sizeStr} ${barStr}  ${name}  ${cat}`);
+    const recent = isRecent(o.mtimeMs);
+    const ageTxt = (recent ? '⚠ ' : '') + humanAge(o.mtimeMs);
+    const age = (recent ? ink.warn : ink.chrome)(ageTxt.padStart(ageW));
+    console.log(`  ${sizeStr} ${barStr}  ${name}  ${cat}  ${age}`);
   }
 
   if (items.length > limit) {
